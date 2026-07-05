@@ -147,10 +147,13 @@
         /* 4. 選手アイコン(コート上) */
         .player-node {
             position: absolute;
-            width: 12%; 
+            /* 【修正】コートの横幅に対する%と、縦幅に対する%を組み合わせて完全な正円（3:4の比率を考慮）を維持 */
+            width: 12.22%;  /* 450pxに対する55pxの割合 */
+            height: 9.16%;  /* 600pxに対する55pxの割合 */
             max-width: 55px;
+            max-height: 55px;
             min-width: 44px;
-            aspect-ratio: 1 / 1;
+            min-height: 44px;
             border-radius: 50%;
             border: 3px solid white; 
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
@@ -163,6 +166,7 @@
             background-position: center;
             z-index: 10;
             -webkit-touch-callout: none;
+            box-sizing: border-box; /* 枠線を含めたサイズ計算に統一 */
         }
 
         .player-node .number-center {
@@ -190,7 +194,6 @@
             z-index: 12;
         }
         
-        /* 【修正】ラベルコンテナ内の文字色をユニフォーム色に関わらず常に白（#ffffff）に固定 */
         .player-label-container {
             position: absolute;
             bottom: -34px;
@@ -214,7 +217,7 @@
             padding: 1px 4px;
             border-radius: 2px;
             font-size: 8px;
-            color: #eeeeee !important; /* 少しだけ明度を落とした白 */
+            color: #eeeeee !important; 
             white-space: nowrap;
             margin-top: 2px;
         }
@@ -323,6 +326,17 @@
             text-align: center;
             margin-right: 8px;
             font-family: 'Impact', 'Arial Black', sans-serif; 
+        }
+        
+        #autosave-indicator {
+            font-size: 11px;
+            color: #4caf50;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        #autosave-indicator.show {
+            opacity: 1;
         }
     </style>
 </head>
@@ -469,7 +483,7 @@
             const m = 20; 
             ctx.strokeRect(m, m, w - m*2, h - m*2);
 
-            ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w - m, h/2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w - m, h/2); stroke();
             ctx.beginPath(); ctx.arc(w/2, h/2, 50, 0, Math.PI * 2); ctx.stroke();
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.beginPath(); ctx.arc(w/2, h/2, 3, 0, Math.PI*2); ctx.fill();
@@ -547,7 +561,7 @@
             teams[currentTeamIndex].manager = managerName;
             
             document.getElementById('display-team-name').innerText = teamName;
-            document.getElementById('display-manager-name').innerText = managerName ? `監督 :  ${managerName}` : '';
+            document.getElementById('display-manager-name').innerText = managerName ? `監督: ${managerName}` : '';
             
             syncColorPickerUI();
             saveCurrentTeamData(true); 
