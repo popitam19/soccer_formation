@@ -53,12 +53,63 @@
         }
         .team-card {
             background-color: var(--card-color);
-            padding: 20px;
+            padding: 20px 20px 45px 20px; 
             border-radius: 10px;
             text-align: center;
             cursor: pointer;
             border: 2px solid transparent;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            position: relative; 
+        }
+        .team-card:hover {
+            border-color: #444;
+        }
+        .btn-delete-team {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            color: #ff5252;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            z-index: 5;
+        }
+        .btn-delete-team:hover {
+            background: #c62828;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .team-order-controls {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            right: 8px;
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            z-index: 6;
+        }
+        .team-order-controls button {
+            flex: 1;
+            padding: 6px 4px;
+            font-size: 11px;
+            background-color: #33333c;
+            color: #eee;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        .team-order-controls button:hover {
+            background-color: #444450;
         }
 
         /* 2. メイン編集画面レイアウト */
@@ -342,8 +393,18 @@
 <body>
 
     <!-- 1. チーム選択画面 -->
-    <div id="select-screen" class="screen active">
+    <div id="select-screen" class="screen active" style="width: 100%; max-width: 500px; margin: 0 auto;">
         <h2 style="text-align: center; margin-top: 10px;">Tactics Board Pro</h2>
+        
+        <!-- チームの並び替えUIボックス -->
+        <div class="form-group" style="margin-bottom: 15px;">
+            <select id="select-team-sort" onchange="changeTeamSortMethod()" style="padding: 10px; font-size: 14px; background: #1e1e24; width: 100%; color: white; border: 1px solid #444; border-radius: 6px;">
+                <option value="default">並び替え: 登録順</option>
+                <option value="name">並び替え: チーム名順 (五十音/ABC順)</option>
+                <option value="custom">並び替え: 自由に変更 (手動)</option>
+            </select>
+        </div>
+
         <div class="team-grid" id="team-grid"></div>
         <button style="width: 100%;" onclick="showCreateTeamModal()">＋ 新しいチームを作成</button>
     </div>
@@ -448,6 +509,8 @@
 
     <script>
         let teams = JSON.parse(localStorage.getItem('football_teams')) || [];
+        let appConfig = JSON.parse(localStorage.getItem('football_app_config')) || { teamSortMethod: 'default' };
+        
         let currentTeamIndex = null;
         let editingPlayerId = null;
 
@@ -458,6 +521,7 @@
         });
 
         window.onload = () => {
+            document.getElementById('select-team-sort').value = appConfig.teamSortMethod || 'default';
             renderTeamSelect();
             drawPitch();
         };
@@ -482,7 +546,7 @@
             const m = 20; 
             ctx.strokeRect(m, m, w - m*2, h - m*2);
 
-            ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w - m, h/2); ctx.stroke(); // 【修正】ctx. を補完しました
+            ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w - m, h/2); ctx.stroke(); 
             ctx.beginPath(); ctx.arc(w/2, h/2, 50, 0, Math.PI * 2); ctx.stroke();
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.beginPath(); ctx.arc(w/2, h/2, 3, 0, Math.PI*2); ctx.fill();
@@ -510,13 +574,86 @@
         function renderTeamSelect() {
             const grid = document.getElementById('team-grid');
             grid.innerHTML = '';
-            teams.forEach((team, index) => {
+            
+            const sortMethod = appConfig.teamSortMethod || 'default';
+
+            let indexedTeams = teams.map((team, index) => ({ team, originalIndex: index }));
+
+            if (sortMethod === 'name') {
+                indexedTeams.sort((a, b) => {
+                    const nameA = a.team.name || '';
+                    const nameB = b.team.name || '';
+                    return nameA.localeCompare(nameB, 'ja');
+                });
+            }
+
+            indexedTeams.forEach((item) => {
+                const team = item.team;
+                const index = item.originalIndex; 
+                
                 const card = document.createElement('div');
                 card.className = 'team-card';
-                card.innerHTML = `<h3>${team.name || '無名チーム'}</h3><p style="font-size:12px;color:var(--text-muted);">監督: ${team.manager || '未設定'}</p>`;
-                card.onclick = () => openTeam(index);
+                
+                card.onclick = (e) => {
+                    if (e.target.closest('.btn-delete-team') || e.target.closest('.team-order-controls')) return;
+                    openTeam(index);
+                };
+
+                let cardHTML = `
+                    <button class="btn-delete-team" title="チームを削除">🗑️</button>
+                    <h3>${team.name || '無名チーム'}</h3>
+                    <p style="font-size:12px;color:var(--text-muted);margin:5px 0 0 0;">監督: ${team.manager || '未設定'}</p>
+                `;
+
+                if (sortMethod === 'custom') {
+                    cardHTML += `
+                        <div class="team-order-controls">
+                            <button onclick="moveTeamOrder(${index}, -1)">◀ 前へ</button>
+                            <button onclick="moveTeamOrder(${index}, 1)">次へ ▶</button>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = cardHTML;
+
+                // ゴミ箱ボタンのクリックイベントを設定
+                card.querySelector('.btn-delete-team').onclick = (e) => {
+                    e.stopPropagation(); 
+                    deleteTeam(index);
+                };
+
                 grid.appendChild(card);
             });
+        }
+
+        /* 【復活】失われていたチーム削除用ロジック */
+        function deleteTeam(index) {
+            const teamName = teams[index].name || '無名チーム';
+            if (confirm(`本当に「${teamName}」をチームごと削除しますか？\n登録されている選手データもすべて消去されます。`)) {
+                teams.splice(index, 1);
+                localStorage.setItem('football_teams', JSON.stringify(teams));
+                renderTeamSelect();
+            }
+        }
+
+        function moveTeamOrder(currentIndex, direction) {
+            const targetIndex = currentIndex + direction;
+            if (targetIndex < 0 || targetIndex >= teams.length) return;
+            
+            const temp = teams[currentIndex];
+            teams[currentIndex] = teams[targetIndex];
+            teams[targetIndex] = temp;
+            
+            localStorage.setItem('football_teams', JSON.stringify(teams));
+            renderTeamSelect();
+        }
+
+        function changeTeamSortMethod() {
+            const method = document.getElementById('select-team-sort').value;
+            appConfig.teamSortMethod = method;
+            
+            localStorage.setItem('football_app_config', JSON.stringify(appConfig));
+            renderTeamSelect();
         }
 
         function showCreateTeamModal() {
