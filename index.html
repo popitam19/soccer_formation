@@ -147,9 +147,8 @@
         /* 4. 選手アイコン(コート上) */
         .player-node {
             position: absolute;
-            /* 【修正】コートの横幅に対する%と、縦幅に対する%を組み合わせて完全な正円（3:4の比率を考慮）を維持 */
-            width: 12.22%;  /* 450pxに対する55pxの割合 */
-            height: 9.16%;  /* 600pxに対する55pxの割合 */
+            width: 12.22%;  
+            height: 9.16%;  
             max-width: 55px;
             max-height: 55px;
             min-width: 44px;
@@ -166,7 +165,7 @@
             background-position: center;
             z-index: 10;
             -webkit-touch-callout: none;
-            box-sizing: border-box; /* 枠線を含めたサイズ計算に統一 */
+            box-sizing: border-box; 
         }
 
         .player-node .number-center {
@@ -483,7 +482,7 @@
             const m = 20; 
             ctx.strokeRect(m, m, w - m*2, h - m*2);
 
-            ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w - m, h/2); stroke();
+            ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w - m, h/2); ctx.stroke(); // 【修正】ctx. を補完しました
             ctx.beginPath(); ctx.arc(w/2, h/2, 50, 0, Math.PI * 2); ctx.stroke();
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.beginPath(); ctx.arc(w/2, h/2, 3, 0, Math.PI*2); ctx.fill();
