@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Football Tactics Board Pro</title>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-color: #1e1e24;
+            --accent-color: #2e7d32;
+            --text-color: #ffffff;
+            --text-muted: #aaaaaa;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overscroll-behavior: none; 
+        }
+
+        h2, h3 { margin: 0 0 15px 0; }
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        button:hover { opacity: 0.9; }
+        .btn-secondary { background-color: #444; }
+        .btn-danger { background-color: #c62828; }
+        .btn-danger:hover { background-color: #b71c1c; }
+        
+        .screen { display: none; width: 100%; max-width: 1000px; }
+        .screen.active { display: block; }
+
+        /* 1. チーム選択画面 */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .team-card {
+            background-color: var(--card-color);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            border: 2px solid transparent;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* 2. メイン編集画面レイアウト */
+        .workspace {
+            display: flex;
+            gap: 20px;
+            flex-direction: column;
+            align-items: center;
+        }
+        @media (min-width: 768px) {
+            .workspace {
+                flex-direction: row;
+                justify-content: center;
+                align-items: flex-start;
+            }
+        }
+
+        .sidebar {
+            width: 100%;
+            max-width: 450px;
+            box-sizing: border-box;
+            background-color: var(--card-color);
+            padding: 20px;
+            border-radius: 15px;
+        }
+        @media (min-width: 768px) {
+            .sidebar {
+                width: 340px;
+                max-height: 850px;
+                overflow-y: auto;
+            }
+        }
+
+        /* 3. 外枠（ボード全体）のコンテナ */
+        #board-container {
+            width: 100%;
+            max-width: 450px;
+            background-color: #0b0b0d; 
+            border-radius: 24px;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.6);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        #display-team-name {
+            width: 100%;
+            padding: 15px 10px 10px 10px;
+            box-sizing: border-box;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            min-height: 24px;
+            word-break: break-all;
+        }
+
+        /* サッカーコート本体 */
+        #pitch-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 3 / 4; 
+            touch-action: none; 
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #display-manager-name {
+            width: 100%;
+            padding: 8px 20px 15px 20px;
+            box-sizing: border-box;
+            text-align: right;
+            font-size: 13px;
+            color: var(--text-muted);
+            min-height: 18px;
+            word-break: break-all;
+        }
+
+        /* 4. 選手アイコン(コート上) */
+        .player-node {
+            position: absolute;
+            width: 12%; 
+            max-width: 55px;
+            min-width: 44px;
+            aspect-ratio: 1 / 1;
+            border-radius: 50%;
+            border: 3px solid white; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-size: cover;
+            background-position: center;
+            z-index: 10;
+            -webkit-touch-callout: none;
+        }
+
+        .player-node .number-center {
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .player-node .number-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 18px;
+            height: 18px;
+            background-color: #ffffff;
+            color: #121214;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            border: 1.5px solid; 
+            z-index: 12;
+        }
+        
+        /* 【修正】ラベルコンテナ内の文字色をユニフォーム色に関わらず常に白（#ffffff）に固定 */
+        .player-label-container {
+            position: absolute;
+            bottom: -34px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+            color: #ffffff !important; 
+        }
+        .player-node .name-label {
+            background: rgba(0,0,0,0.75);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+            white-space: nowrap;
+            color: #ffffff !important;
+        }
+        .player-node .memo-label {
+            background: rgba(0,0,0,0.6);
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 8px;
+            color: #eeeeee !important; /* 少しだけ明度を落とした白 */
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        /* コート上タップメニュー */
+        .player-action-menu {
+            position: absolute;
+            background: rgba(20, 20, 25, 0.96);
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 6px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 2000;
+            backdrop-filter: blur(4px);
+            min-width: 110px;
+        }
+        .player-action-menu button {
+            padding: 8px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            text-align: left;
+            width: 100%;
+            background: transparent;
+            font-weight: normal;
+        }
+        .player-action-menu button:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        /* 5. 選手リスト・登録フォーム */
+        .form-group {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group-row {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .form-group label { font-size: 12px; margin-bottom: 4px; color: var(--text-muted); }
+        .form-group input, .form-group textarea, .form-group select {
+            background: #2a2a32; border: 1px solid #444; padding: 10px; color: white; border-radius: 6px;
+            font-size: 14px; 
+        }
+
+        .color-picker-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #2a2a32;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .color-picker-wrapper {
+            position: relative;
+            width: 36px; 
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .custom-color-input {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            width: 60px;
+            height: 60px;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: none;
+            cursor: pointer;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .custom-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+        .custom-color-input::-webkit-color-swatch { border: none; }
+        .custom-color-input::-moz-color-swatch { border: none; }
+        
+        .player-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #2a2a32;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .list-player-number {
+            font-size: 20px;
+            font-weight: 800;
+            color: #fff;
+            min-width: 28px;
+            display: inline-block;
+            text-align: center;
+            margin-right: 8px;
+            font-family: 'Impact', 'Arial Black', sans-serif; 
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. チーム選択画面 -->
+    <div id="select-screen" class="screen active">
+        <h2 style="text-align: center; margin-top: 10px;">Tactics Board Pro</h2>
+        <div class="team-grid" id="team-grid"></div>
+        <button style="width: 100%;" onclick="showCreateTeamModal()">＋ 新しいチームを作成</button>
+    </div>
+
+    <!-- 2. フォーメーション編集画面 -->
+    <div id="edit-screen" class="screen">
+        <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 450px; margin: 0 auto 15px auto;">
+            <button class="btn-secondary" onclick="backToSelectScreen()">◀ 戻る</button>
+            <div id="autosave-indicator">✓ Auto Saved</div>
+        </div>
+
+        <div class="workspace">
+            <!-- ボードコンテナ -->
+            <div id="board-container">
+                <div id="display-team-name"></div>
+                <div id="pitch-wrapper">
+                    <canvas id="pitchCanvas" width="450" height="600"></canvas>
+                    <div id="players-on-pitch"></div>
+                </div>
+                <div id="display-manager-name"></div>
+            </div>
+
+            <!-- 右側：サイドバー -->
+            <div class="sidebar">
+                <h3>チーム設定</h3>
+                <div class="form-group">
+                    <label>チーム名</label>
+                    <input type="text" id="input-team-name" oninput="updateTeamMeta()">
+                </div>
+                <div class="form-group">
+                    <label>監督名</label>
+                    <input type="text" id="input-manager-name" oninput="updateTeamMeta()">
+                </div>
+                
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>ユニフォーム (FP)</label>
+                        <div class="color-picker-container">
+                            <div class="color-picker-wrapper" id="fp-color-preview">
+                                <input type="color" id="input-uniform-color" class="custom-color-input" value="#e53935" onchange="updateUniformColor()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>ユニフォーム (GK)</label>
+                        <div class="color-picker-container">
+                            <div class="color-picker-wrapper" id="gk-color-preview">
+                                <input type="color" id="input-gk-uniform-color" class="custom-color-input" value="#ffb300" onchange="updateUniformColor()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="border: 0.5px solid #444; margin: 20px 0;">
+
+                <h3>選手登録 (<span id="player-count">0</span>/100)</h3>
+                <div id="player-form">
+                    <div class="form-group-row">
+                        <input type="checkbox" id="p-is-gk" style="width:20px; height:20px;">
+                        <label for="p-is-gk" style="font-size: 14px; color: #fff; cursor: pointer;">ゴールキーパー(GK)</label>
+                    </div>
+                    <div class="form-group">
+                        <label>氏名</label>
+                        <input type="text" id="p-name" placeholder="山田 太郎">
+                    </div>
+                    <div class="form-group">
+                        <label>背番号</label>
+                        <input type="number" id="p-number" placeholder="1">
+                    </div>
+                    <div class="form-group">
+                        <label>顔写真</label>
+                        <input type="file" id="p-photo" accept="image/*">
+                    </div>
+                    <div class="form-group">
+                        <label>メモ1 (ポジションなど)</label>
+                        <input type="text" id="p-memo1" placeholder="MF / 右ウイング">
+                    </div>
+                    <div class="form-group">
+                        <label>メモ2 (特徴など)</label>
+                        <textarea id="p-memo2" rows="2" placeholder="特徴を記入"></textarea>
+                    </div>
+                    <button type="button" style="width:100%" id="btn-submit-player" onclick="registerPlayer()">選手を追加・更新</button>
+                    <button type="button" style="width:100%; margin-top:5px; display:none;" id="btn-cancel-edit" class="btn-secondary" onclick="clearPlayerForm()">編集をキャンセル</button>
+                </div>
+
+                <!-- 登録選手一覧の見出しと並び替えUI -->
+                <div style="margin-top: 30px; border-bottom: 1px solid #444; padding-bottom: 8px;">
+                    <h4 style="margin: 0 0 8px 0;">登録選手一覧</h4>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select id="select-player-sort" onchange="changeSortMethod()" style="padding: 6px 10px; font-size: 12px; background: #2a2a32; width: 100%;">
+                            <option value="default">並び替え: 登録順</option>
+                            <option value="number">並び替え: 背番号順 (昇順)</option>
+                            <option value="name">並び替え: 名前順 (ABC/五十音)</option>
+                            <option value="gk">並び替え: GK優先</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="registered-players-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let teams = JSON.parse(localStorage.getItem('football_teams')) || [];
+        let currentTeamIndex = null;
+        let editingPlayerId = null;
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.player-node') && !e.target.closest('.player-action-menu')) {
+                closeAllMenus();
+            }
+        });
+
+        window.onload = () => {
+            renderTeamSelect();
+            drawPitch();
+        };
+
+        function drawPitch() {
+            const canvas = document.getElementById('pitchCanvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            const stripes = 12;
+            const stripeHeight = h / stripes;
+            for(let i=0; i<stripes; i++) {
+                ctx.fillStyle = (i % 2 === 0) ? '#2e7d32' : '#388e3c';
+                ctx.fillRect(0, i * stripeHeight, w, stripeHeight);
+            }
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.fillStyle = 'none';
+
+            const m = 20; 
+            ctx.strokeRect(m, m, w - m*2, h - m*2);
+
+            ctx.beginPath(); ctx.moveTo(m, h/2); ctx.lineTo(w - m, h/2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(w/2, h/2, 50, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath(); ctx.arc(w/2, h/2, 3, 0, Math.PI*2); ctx.fill();
+
+            // ペナルティエリア
+            ctx.strokeRect(w/2 - 80, m, 160, 70);
+            ctx.strokeRect(w/2 - 30, m, 60, 25);
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath(); ctx.arc(w/2, m + 45, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(w/2, m + 45, 40, 0.64, Math.PI - 0.64, false); ctx.stroke();
+
+            ctx.strokeRect(w/2 - 80, h - m - 70, 160, 70);
+            ctx.strokeRect(w/2 - 30, h - m - 25, 60, 25);
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath(); ctx.arc(w/2, h - m - 45, 2, 0, Math.PI*2); ctx.fill(); 
+            ctx.beginPath(); ctx.arc(w/2, h - m - 45, 40, Math.PI + 0.64, Math.PI * 2 - 0.64, false); ctx.stroke();
+
+            const r = 10;
+            ctx.beginPath(); ctx.arc(m, m, r, 0, Math.PI/2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(w - m, m, r, Math.PI/2, Math.PI); ctx.stroke();
+            ctx.beginPath(); ctx.arc(m, h - m, r, Math.PI * 1.5, 0); ctx.stroke();
+            ctx.beginPath(); ctx.arc(w - m, h - m, r, Math.PI, Math.PI * 1.5); ctx.stroke();
+        }
+
+        function renderTeamSelect() {
+            const grid = document.getElementById('team-grid');
+            grid.innerHTML = '';
+            teams.forEach((team, index) => {
+                const card = document.createElement('div');
+                card.className = 'team-card';
+                card.innerHTML = `<h3>${team.name || '無名チーム'}</h3><p style="font-size:12px;color:var(--text-muted);">監督: ${team.manager || '未設定'}</p>`;
+                card.onclick = () => openTeam(index);
+                grid.appendChild(card);
+            });
+        }
+
+        function showCreateTeamModal() {
+            const name = prompt("チーム名を入力してください:");
+            if (!name) return;
+            teams.push({ name: name, manager: '', uniformColor: '#e53935', gkUniformColor: '#ffb300', playerSortMethod: 'default', players: [] });
+            saveCurrentTeamData(true); 
+            renderTeamSelect();
+        }
+
+        function openTeam(index) {
+            currentTeamIndex = index;
+            document.getElementById('select-screen').classList.remove('active');
+            document.getElementById('edit-screen').classList.add('active');
+            
+            const team = teams[currentTeamIndex];
+            document.getElementById('input-team-name').value = team.name;
+            document.getElementById('input-manager-name').value = team.manager || '';
+            document.getElementById('input-uniform-color').value = team.uniformColor || '#e53935';
+            document.getElementById('input-gk-uniform-color').value = team.gkUniformColor || '#ffb300';
+            
+            document.getElementById('select-player-sort').value = team.playerSortMethod || 'default';
+            
+            updateTeamMeta();
+            renderPlayerList();
+            renderPlayersOnPitch();
+            window.scrollTo(0, 0);
+        }
+
+        function backToSelectScreen() {
+            closeAllMenus();
+            document.getElementById('edit-screen').classList.remove('active');
+            document.getElementById('select-screen').classList.add('active');
+            renderTeamSelect();
+        }
+
+        function updateTeamMeta() {
+            const teamName = document.getElementById('input-team-name').value;
+            const managerName = document.getElementById('input-manager-name').value;
+            teams[currentTeamIndex].name = teamName;
+            teams[currentTeamIndex].manager = managerName;
+            
+            document.getElementById('display-team-name').innerText = teamName;
+            document.getElementById('display-manager-name').innerText = managerName ? `監督 :  ${managerName}` : '';
+            
+            syncColorPickerUI();
+            saveCurrentTeamData(true); 
+        }
+
+        function syncColorPickerUI() {
+            const fpColor = document.getElementById('input-uniform-color').value;
+            const gkColor = document.getElementById('input-gk-uniform-color').value;
+
+            document.getElementById('fp-color-preview').style.backgroundColor = fpColor;
+            document.getElementById('gk-color-preview').style.backgroundColor = gkColor;
+        }
+
+        function closeAllMenus() {
+            const oldMenus = document.querySelectorAll('.player-action-menu');
+            oldMenus.forEach(m => m.remove());
+        }
+
+        function updateUniformColor() {
+            const fpColor = document.getElementById('input-uniform-color').value;
+            const gkColor = document.getElementById('input-gk-uniform-color').value;
+            teams[currentTeamIndex].uniformColor = fpColor;
+            teams[currentTeamIndex].gkUniformColor = gkColor;
+            
+            syncColorPickerUI();
+            renderPlayersOnPitch();
+            saveCurrentTeamData(true); 
+        }
+
+        function changeSortMethod() {
+            const method = document.getElementById('select-player-sort').value;
+            teams[currentTeamIndex].playerSortMethod = method;
+            renderPlayerList();
+            saveCurrentTeamData(true); 
+        }
+
+        function registerPlayer() {
+            const team = teams[currentTeamIndex];
+            const isGk = document.getElementById('p-is-gk').checked;
+            const name = document.getElementById('p-name').value;
+            const number = document.getElementById('p-number').value;
+            const memo1 = document.getElementById('p-memo1').value;
+            const memo2 = document.getElementById('p-memo2').value;
+            const photoInput = document.getElementById('p-photo');
+
+            if (!name) { alert("氏名は必須です"); return; }
+            
+            if (editingPlayerId === null && team.players.length >= 100) {
+                alert("登録できる選手は100人までです。"); return;
+            }
+
+            const proceed = (photoDataUrl) => {
+                if (editingPlayerId !== null) {
+                    const p = team.players.find(pl => pl.id === editingPlayerId);
+                    p.isGk = isGk; p.name = name; p.number = number; p.memo1 = memo1; p.memo2 = memo2;
+                    if(photoDataUrl) p.photo = photoDataUrl;
+                    editingPlayerId = null;
+                } else {
+                    team.players.push({
+                        id: Date.now().toString(), isGk: isGk, name: name, number: number, memo1: memo1, memo2: memo2,
+                        photo: photoDataUrl || '', x: 195, y: isGk ? 480 : 280, isOnPitch: false
+                    });
+                }
+                clearPlayerForm(); renderPlayerList(); renderPlayersOnPitch();
+                saveCurrentTeamData(false); 
+            };
+
+            if (photoInput.files && photoInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) { proceed(e.target.result); };
+                reader.readAsDataURL(photoInput.files[0]);
+            } else {
+                proceed(null);
+            }
+        }
+
+        function clearPlayerForm() {
+            document.getElementById('p-is-gk').checked = false;
+            document.getElementById('p-name').value = '';
+            document.getElementById('p-number').value = '';
+            document.getElementById('p-memo1').value = '';
+            document.getElementById('p-memo2').value = '';
+            document.getElementById('p-photo').value = '';
+            editingPlayerId = null;
+            
+            document.getElementById('btn-submit-player').innerText = "選手を追加・更新";
+            document.getElementById('btn-cancel-edit').style.display = "none";
+        }
+
+        function renderPlayerList() {
+            const team = teams[currentTeamIndex];
+            document.getElementById('player-count').innerText = team.players.length;
+            const listContainer = document.getElementById('registered-players-list');
+            listContainer.innerHTML = '';
+
+            const sortMethod = team.playerSortMethod || 'default';
+            document.getElementById('select-player-sort').value = sortMethod;
+            
+            let sortedPlayers = [...team.players];
+
+            if (sortMethod === 'number') {
+                sortedPlayers.sort((a, b) => {
+                    const numA = a.number === '' ? 9999 : parseInt(a.number);
+                    const numB = b.number === '' ? 9999 : parseInt(b.number);
+                    return numA - numB;
+                });
+            } else if (sortMethod === 'name') {
+                sortedPlayers.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+            } else if (sortMethod === 'gk') {
+                sortedPlayers.sort((a, b) => (b.isGk ? 1 : 0) - (a.isGk ? 1 : 0));
+            }
+
+            sortedPlayers.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'player-list-item';
+                
+                const numDisplay = p.number !== '' ? p.number : '-';
+
+                item.innerHTML = `
+                    <div style="display: flex; align-items: center; overflow: hidden; flex: 1; padding-right: 5px;">
+                        <span class="custom-list-num-wrapper" style="display: flex; align-items: center;">
+                            <span class="list-player-number">${numDisplay}</span>
+                        </span>
+                        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <strong style="font-size: 15px;">${p.name} ${p.isGk ? '<span style="color:#ffb300; font-size:11px; font-weight:bold;">(GK)</span>' : ''}</strong> <br>
+                            <span style="font-size:11px; color:#aaa;">${p.memo1 || ''}</span>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:5px; flex-shrink: 0;">
+                        <button class="btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="togglePitchStatus('${p.id}')">
+                            ${p.isOnPitch ? '外す' : '起用'}
+                        </button>
+                        <button class="btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="loadPlayerToForm('${p.id}')">編集</button>
+                        <button class="btn-danger" style="padding:6px 10px; font-size:12px;" onclick="deletePlayer('${p.id}')">削除</button>
+                    </div>
+                `;
+                listContainer.appendChild(item);
+            });
+        }
+
+        function deletePlayer(id) {
+            const team = teams[currentTeamIndex];
+            const p = team.players.find(pl => pl.id === id);
+            
+            if (confirm(`本当に ${p.name} 選手を削除しますか？`)) {
+                team.players = team.players.filter(pl => pl.id !== id);
+                if (editingPlayerId === id) clearPlayerForm();
+                closeAllMenus();
+                renderPlayerList(); 
+                renderPlayersOnPitch();
+                saveCurrentTeamData(false);
+            }
+        }
+
+        function loadPlayerToForm(id) {
+            const p = teams[currentTeamIndex].players.find(pl => pl.id === id);
+            editingPlayerId = p.id;
+            document.getElementById('p-is-gk').checked = p.isGk || false;
+            document.getElementById('p-name').value = p.name;
+            document.getElementById('p-number').value = p.number;
+            document.getElementById('p-memo1').value = p.memo1;
+            document.getElementById('p-memo2').value = p.memo2;
+            
+            document.getElementById('btn-submit-player').innerText = "登録変更を保存する";
+            document.getElementById('btn-cancel-edit').style.display = "block";
+            
+            document.getElementById('player-form').scrollIntoView({ behavior: 'smooth' });
+            closeAllMenus();
+        }
+
+        function togglePitchStatus(id) {
+            const p = teams[currentTeamIndex].players.find(pl => pl.id === id);
+            p.isOnPitch = !p.isOnPitch;
+            closeAllMenus();
+            renderPlayerList(); renderPlayersOnPitch();
+            saveCurrentTeamData(false); 
+        }
+
+        function showActionMenu(pageX, pageY, playerObject) {
+            closeAllMenus();
+
+            const menu = document.createElement('div');
+            menu.className = 'player-action-menu';
+            
+            menu.style.left = `${Math.min(pageX, window.innerWidth - 130)}px`;
+            menu.style.top = `${pageY}px`;
+
+            menu.innerHTML = `
+                <button style="color: #fff;" id="btn-menu-pitch">❌ コートから外す</button>
+                <button style="color: #ffb300;" id="btn-menu-edit">✏️ 選手情報を編集</button>
+                <button style="color: #ff5252;" id="btn-menu-delete">🗑️ 選手を削除</button>
+            `;
+
+            menu.querySelector('#btn-menu-pitch').onclick = () => togglePitchStatus(playerObject.id);
+            menu.querySelector('#btn-menu-edit').onclick = () => loadPlayerToForm(playerObject.id);
+            menu.querySelector('#btn-menu-delete').onclick = () => deletePlayer(playerObject.id);
+
+            document.body.appendChild(menu);
+        }
+
+        function renderPlayersOnPitch() {
+            const container = document.getElementById('players-on-pitch');
+            container.innerHTML = '';
+            const team = teams[currentTeamIndex];
+            const fpColor = team.uniformColor || '#e53935';
+            const gkColor = team.gkUniformColor || '#ffb300';
+
+            team.players.forEach(p => {
+                if (!p.isOnPitch) return;
+
+                const node = document.createElement('div');
+                node.className = 'player-node';
+                
+                node.style.left = `${(p.x / 450) * 100}%`;
+                node.style.top = `${(p.y / 600) * 100}%`;
+                
+                const activeColor = p.isGk ? gkColor : fpColor;
+                node.style.borderColor = activeColor;
+
+                if (p.photo) {
+                    node.style.backgroundImage = `url(${p.photo})`;
+                    if (p.number) {
+                        const badge = document.createElement('div');
+                        badge.className = 'number-badge';
+                        badge.style.borderColor = activeColor; 
+                        badge.innerText = p.number;
+                        node.appendChild(badge);
+                    }
+                } else {
+                    node.style.backgroundColor = activeColor;
+                    node.style.color = getContrastColor(activeColor);
+                    
+                    const centerNum = document.createElement('div');
+                    centerNum.className = 'number-center';
+                    centerNum.innerText = p.number || '';
+                    node.appendChild(centerNum);
+                }
+
+                const labelContainer = document.createElement('div');
+                labelContainer.className = 'player-label-container';
+
+                const nameElm = document.createElement('div');
+                nameElm.className = 'name-label';
+                nameElm.innerText = p.name;
+                labelContainer.appendChild(nameElm);
+
+                if (p.memo1 && p.memo1.trim() !== '') {
+                    const memoElm = document.createElement('div');
+                    memoElm.className = 'memo-label';
+                    memoElm.innerText = p.memo1;
+                    labelContainer.appendChild(memoElm);
+                }
+
+                node.appendChild(labelContainer);
+                makeElementDraggable(node, p);
+                container.appendChild(node);
+            });
+            
+            syncColorPickerUI();
+        }
+
+        function makeElementDraggable(elm, playerObject) {
+            let isDragging = false;
+            let hasMoved = false; 
+            const pitchWrapper = document.getElementById('pitch-wrapper');
+
+            const startDrag = (e) => {
+                isDragging = true;
+                hasMoved = false;
+                e.preventDefault();
+            };
+
+            const doDrag = (e) => {
+                if (!isDragging) return;
+                hasMoved = true; 
+                
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const rect = pitchWrapper.getBoundingClientRect();
+                
+                let percentX = ((clientX - rect.left) / rect.width);
+                let percentY = ((clientY - rect.top) / rect.height);
+
+                let targetX = (percentX * 450) - 25; 
+                let targetY = (percentY * 600) - 25;
+
+                targetX = Math.max(0, Math.min(targetX, 450 - 50));
+                targetY = Math.max(0, Math.min(targetY, 600 - 50));
+
+                elm.style.left = `${(targetX / 450) * 100}%`;
+                elm.style.top = `${(targetY / 600) * 100}%`;
+
+                playerObject.x = targetX;
+                playerObject.y = targetY;
+            };
+
+            const endDrag = (e) => { 
+                if (isDragging) {
+                    isDragging = false; 
+                    
+                    if (!hasMoved) {
+                        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+                        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+                        showActionMenu(clientX, clientY, playerObject);
+                    } else {
+                        saveCurrentTeamData(false); 
+                    }
+                }
+            };
+
+            elm.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', doDrag);
+            document.addEventListener('mouseup', endDrag);
+
+            elm.addEventListener('touchstart', startDrag, { passive: false });
+            document.addEventListener('touchmove', doDrag, { passive: false });
+            document.addEventListener('touchend', endDrag);
+        }
+
+        function saveCurrentTeamData(isSilent = false) {
+            localStorage.setItem('football_teams', JSON.stringify(teams));
+            
+            if (!isSilent) {
+                const indicator = document.getElementById('autosave-indicator');
+                indicator.classList.add('show');
+                
+                clearTimeout(window.autosaveTimeout);
+                window.autosaveTimeout = setTimeout(() => {
+                    indicator.classList.remove('show');
+                }, 1200);
+            }
+        }
+
+        function getContrastColor(hexcolor){
+            const r = parseInt(hexcolor.substr(1,2),16);
+            const g = parseInt(hexcolor.substr(3,2),16);
+            const b = parseInt(hexcolor.substr(5,2),16);
+            return ((((r*299)+(g*587)+(b*114))/1000) >= 128) ? '#000000' : '#ffffff';
+        }
+    </script>
+</body>
+</html>
