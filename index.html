@@ -71,9 +71,10 @@
             border: 2px solid transparent;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
             position: relative; 
+            transition: border-color 0.2s;
         }
         .team-card:hover {
-            border-color: #444;
+            border-color: #888 !important; 
         }
         .btn-delete-team {
             position: absolute;
@@ -114,13 +115,13 @@
             flex: 1;
             padding: 6px 4px;
             font-size: 11px;
-            background-color: #33333c;
+            background-color: rgba(0, 0, 0, 0.5); 
             color: #eee;
             border-radius: 4px;
-            border: 1px solid #444;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         .team-order-controls button:hover {
-            background-color: #444450;
+            background-color: rgba(0, 0, 0, 0.7);
         }
 
         /* 2. メイン編集画面レイアウト */
@@ -242,8 +243,6 @@
             right: -6px;
             width: 18px;
             height: 18px;
-            background-color: #ffffff;
-            color: #121214;
             border-radius: 50%;
             font-size: 10px;
             font-weight: bold;
@@ -251,7 +250,7 @@
             align-items: center;
             justify-content: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-            border: 1.5px solid; 
+            border: 1.5px solid white; 
             z-index: 12;
         }
         
@@ -469,20 +468,28 @@
                     <input type="text" id="input-manager-name" oninput="updateTeamMeta()">
                 </div>
                 
-                <div style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>ユニフォーム (FP)</label>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 90px;">
+                        <label>ユニフォーム(FP)</label>
                         <div class="color-picker-container">
                             <div class="color-picker-wrapper" id="fp-color-preview">
                                 <input type="color" id="input-uniform-color" class="custom-color-input" value="#e53935" onchange="updateUniformColor()">
                             </div>
                         </div>
                     </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label>ユニフォーム (GK)</label>
+                    <div class="form-group" style="flex: 1; min-width: 90px;">
+                        <label>ユニフォーム(GK)</label>
                         <div class="color-picker-container">
                             <div class="color-picker-wrapper" id="gk-color-preview">
                                 <input type="color" id="input-gk-uniform-color" class="custom-color-input" value="#ffb300" onchange="updateUniformColor()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 90px;">
+                        <label>FP背番号の色</label>
+                        <div class="color-picker-container">
+                            <div class="color-picker-wrapper" id="fp-number-color-preview" style="background-color: #ffffff;">
+                                <input type="color" id="input-fp-number-color" class="custom-color-input" value="#ffffff" onchange="updateUniformColor()">
                             </div>
                         </div>
                     </div>
@@ -547,7 +554,6 @@
             signOut, 
             onAuthStateChanged 
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        // 【新設】Firestoreデータベース用のモジュールを追加
         import { 
             getFirestore, 
             doc, 
@@ -568,19 +574,17 @@
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-        const db = getFirestore(app); // Firestoreの初期化
+        const db = getFirestore(app);
 
         let currentUser = null;
-        let unsubscribeRealtime = null; // リアルタイム同期解除用のリスナー
+        let unsubscribeRealtime = null;
 
-        // ログイン状態の監視
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
                 switchScreen('select-screen');
                 
-                // 【クラウド化】Firestoreからデータを「リアルタイム同期（onSnapshot）」でリッスン開始
-                if(unsubscribeRealtime) unsubscribeRealtime(); // 既存の古い同期があれば解除
+                if(unsubscribeRealtime) unsubscribeRealtime();
                 
                 unsubscribeRealtime = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
                     if (docSnap.exists()) {
@@ -588,21 +592,20 @@
                         window.teams = cloudData.teams || [];
                         window.appConfig = cloudData.appConfig || { teamSortMethod: 'default' };
                     } else {
-                        // 初回ログインでクラウドにデータがない場合は空で初期化
                         window.teams = [];
                         window.appConfig = { teamSortMethod: 'default' };
                     }
                     document.getElementById('select-team-sort').value = appConfig.teamSortMethod || 'default';
                     renderTeamSelect();
                     
-                    // 現在チームを開いている場合は、ピッチとサイドバーリストもクラウドの最新値で再描画
                     if (currentTeamIndex !== null && window.teams[currentTeamIndex]) {
-                        // チーム設定フォームへの最新データの流し込み
                         const team = window.teams[currentTeamIndex];
                         document.getElementById('input-team-name').value = team.name || '';
                         document.getElementById('input-manager-name').value = team.manager || '';
                         document.getElementById('input-uniform-color').value = team.uniformColor || '#e53935';
                         document.getElementById('input-gk-uniform-color').value = team.gkUniformColor || '#ffb300';
+                        document.getElementById('input-fp-number-color').value = team.fpNumberColor || '#ffffff';
+                        
                         document.getElementById('display-team-name').innerText = team.name || '';
                         document.getElementById('display-manager-name').innerText = team.manager ? `監督: ${team.manager}` : '';
                         
@@ -624,7 +627,6 @@
             if(screenId === 'edit-screen') drawPitch();
         }
 
-        // アカウント作成
         document.getElementById('btn-signup').onclick = async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
@@ -635,7 +637,6 @@
             } catch (error) { alert('作成失敗: ' + error.message); }
         };
 
-        // ログイン
         document.getElementById('btn-login').onclick = async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
@@ -644,7 +645,6 @@
             catch (error) { alert('ログイン失敗: ' + error.message); }
         };
 
-        // ログアウト
         document.getElementById('btn-logout').onclick = async () => {
             if (confirm('ログアウトしますか？')) {
                 try {
@@ -655,7 +655,6 @@
             }
         };
 
-        // --- コアロジックの展開 ---
         window.teams = [];
         window.appConfig = { teamSortMethod: 'default' };
         let currentTeamIndex = null;
@@ -735,15 +734,23 @@
                 const card = document.createElement('div');
                 card.className = 'team-card';
                 
+                const activeBgColor = team.uniformColor || '#e53935';
+                card.style.backgroundColor = activeBgColor;
+                
+                const activeTextColor = getContrastColor(activeBgColor);
+                card.style.color = activeTextColor;
+
                 card.onclick = (e) => {
                     if (e.target.closest('.btn-delete-team') || e.target.closest('.team-order-controls')) return;
                     openTeam(index);
                 };
 
+                const subTextColor = (activeTextColor === '#000000') ? '#333333' : 'var(--text-muted)';
+
                 let cardHTML = `
                     <button class="btn-delete-team" title="チームを削除">🗑️</button>
-                    <h3>${team.name || '無名チーム'}</h3>
-                    <p style="font-size:12px;color:var(--text-muted);margin:5px 0 0 0;">監督: ${team.manager || '未設定'}</p>
+                    <h3 style="color: ${activeTextColor};">${team.name || '無名チーム'}</h3>
+                    <p style="font-size:12px; color: ${subTextColor}; margin:5px 0 0 0;">監督: ${team.manager || '未設定'}</p>
                 `;
 
                 if (sortMethod === 'custom') {
@@ -769,7 +776,7 @@
             const teamName = teams[index].name || '無名チーム';
             if (confirm(`本当に「${teamName}」をチームごと削除しますか？`)) {
                 teams.splice(index, 1);
-                saveCurrentTeamData(true); // クラウドへセーブ
+                saveCurrentTeamData(true); 
             }
         }
 
@@ -779,19 +786,19 @@
             const temp = teams[currentIndex];
             teams[currentIndex] = teams[targetIndex];
             teams[targetIndex] = temp;
-            saveCurrentTeamData(true); // クラウドへセーブ
+            saveCurrentTeamData(true); 
         }
 
         window.changeTeamSortMethod = function() {
             const method = document.getElementById('select-team-sort').value;
             appConfig.teamSortMethod = method;
-            saveCurrentTeamData(true); // クラウドへセーブ
+            saveCurrentTeamData(true); 
         }
 
         window.showCreateTeamModal = function() {
             const name = prompt("チーム名を入力してください:");
             if (!name) return;
-            teams.push({ name: name, manager: '', uniformColor: '#e53935', gkUniformColor: '#ffb300', playerSortMethod: 'default', players: [] });
+            teams.push({ name: name, manager: '', uniformColor: '#e53935', gkUniformColor: '#ffb300', fpNumberColor: '#ffffff', playerSortMethod: 'default', players: [] });
             saveCurrentTeamData(true); 
         }
 
@@ -804,6 +811,7 @@
             document.getElementById('input-manager-name').value = team.manager || '';
             document.getElementById('input-uniform-color').value = team.uniformColor || '#e53935';
             document.getElementById('input-gk-uniform-color').value = team.gkUniformColor || '#ffb300';
+            document.getElementById('input-fp-number-color').value = team.fpNumberColor || '#ffffff';
             document.getElementById('select-player-sort').value = team.playerSortMethod || 'default';
             
             updateTeamMeta();
@@ -835,8 +843,11 @@
         function syncColorPickerUI() {
             const fpColor = document.getElementById('input-uniform-color').value;
             const gkColor = document.getElementById('input-gk-uniform-color').value;
+            const fpNumColor = document.getElementById('input-fp-number-color').value;
+
             document.getElementById('fp-color-preview').style.backgroundColor = fpColor;
             document.getElementById('gk-color-preview').style.backgroundColor = gkColor;
+            document.getElementById('fp-number-color-preview').style.backgroundColor = fpNumColor;
         }
 
         function closeAllMenus() {
@@ -846,8 +857,11 @@
         window.updateUniformColor = function() {
             const fpColor = document.getElementById('input-uniform-color').value;
             const gkColor = document.getElementById('input-gk-uniform-color').value;
+            const fpNumColor = document.getElementById('input-fp-number-color').value;
+            
             teams[currentTeamIndex].uniformColor = fpColor;
             teams[currentTeamIndex].gkUniformColor = gkColor;
+            teams[currentTeamIndex].fpNumberColor = fpNumColor;
             
             syncColorPickerUI();
             renderPlayersOnPitch();
@@ -1002,6 +1016,7 @@
             document.body.appendChild(menu);
         }
 
+        /* 【大幅修正】写真がある場合：バッジ背景はユニフォーム色、バッジ文字色は設定した背番号の色にするロジック */
         window.renderPlayersOnPitch = function() {
             const container = document.getElementById('players-on-pitch');
             if(!container || currentTeamIndex === null || !teams[currentTeamIndex]) return;
@@ -1009,6 +1024,9 @@
             const team = teams[currentTeamIndex];
             const fpColor = team.uniformColor || '#e53935';
             const gkColor = team.gkUniformColor || '#ffb300';
+            
+            // 全体設定の手動背番号色（デフォルト白）
+            const globalFpNumColor = team.fpNumberColor || '#ffffff';
 
             team.players.forEach(p => {
                 if (!p.isOnPitch) return;
@@ -1016,22 +1034,44 @@
                 node.className = 'player-node';
                 node.style.left = `${(p.x / 450) * 100}%`;
                 node.style.top = `${(p.y / 600) * 100}%`;
+                
                 const activeColor = p.isGk ? gkColor : fpColor;
                 node.style.borderColor = activeColor;
 
                 if (p.photo) {
+                    // ──【顔写真ありパターン】──
                     node.style.backgroundImage = `url(${p.photo})`;
                     if (p.number) {
                         const badge = document.createElement('div');
                         badge.className = 'number-badge';
-                        badge.style.borderColor = activeColor; badge.innerText = p.number;
+                        
+                        if (p.isGk) {
+                            // GK：今まで通り（バッジ背景はGKユニフォーム色、文字は白黒自動反転）
+                            badge.style.backgroundColor = gkColor;
+                            badge.style.color = getContrastColor(gkColor);
+                        } else {
+                            // FP：【変更】バッジ背景はFPユニフォーム色、中の数字の文字色は手動設定色
+                            badge.style.backgroundColor = fpColor;
+                            badge.style.color = globalFpNumColor; 
+                        }
+                        
+                        badge.innerText = p.number;
                         node.appendChild(badge);
                     }
                 } else {
+                    // ──【顔写真なしパターン】──
                     node.style.backgroundColor = activeColor;
-                    node.style.color = getContrastColor(activeColor);
+                    
                     const centerNum = document.createElement('div');
-                    centerNum.className = 'number-center'; centerNum.innerText = p.number || '';
+                    centerNum.className = 'number-center';
+                    
+                    if (p.isGk) {
+                        node.style.color = getContrastColor(gkColor);
+                    } else {
+                        node.style.color = globalFpNumColor;
+                    }
+                    
+                    centerNum.innerText = p.number || '';
                     node.appendChild(centerNum);
                 }
 
@@ -1086,17 +1126,13 @@
             elm.addEventListener('touchstart', startDrag, { passive: false }); document.addEventListener('touchmove', doDrag, { passive: false }); elm.addEventListener('touchend', endDrag);
         }
 
-        // 【大幅書き換え】ローカル保存を廃止し、Firestoreにまとめて非同期保存するロジック
         window.saveCurrentTeamData = async function(isSilent = false) {
             if(!currentUser) return;
-            
             try {
-                // データベース上の users/ユーザー固有UID のドキュメントにデータを丸ごとセット
                 await setDoc(doc(db, "users", currentUser.uid), {
                     teams: teams,
                     appConfig: appConfig
-                }, { merge: true }); // 他の項目を破壊しないマージ設定
-                
+                }, { merge: true });
                 if (!isSilent) {
                     const indicator = document.getElementById('autosave-indicator');
                     if(indicator) {
