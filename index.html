@@ -402,7 +402,6 @@
 </head>
 <body>
 
-    <!-- 0. Firebaseログイン・アカウント作成画面 -->
     <div id="auth-screen" class="screen active">
         <div class="auth-container" style="margin: 40px auto 0 auto;">
             <h2 style="text-align: center;">Tactics Board Login</h2>
@@ -415,11 +414,16 @@
                 <input type="password" id="auth-password" placeholder="6文字以上">
             </div>
             <button style="width: 100%; margin-bottom: 10px;" id="btn-login">ログイン</button>
-            <button style="width: 100%;" id="btn-signup" class="btn-secondary">新規アカウント作成</button>
+            <button style="width: 100%; margin-bottom: 15px;" id="btn-signup" class="btn-secondary">新規アカウント作成</button>
+            
+            <div style="text-align: center;">
+                <button id="btn-reset-password" class="btn-secondary" style="background: transparent; color: #aaaaaa; font-weight: normal; font-size: 12px; text-decoration: underline; padding: 5px;">
+                    パスワードを忘れた場合 / 変更はこちら
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- 1. チーム選択画面 -->
     <div id="select-screen" class="screen" style="width: 100%; max-width: 500px; margin: 0 auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h2 style="margin: 0;">Tactics Board Pro</h2>
@@ -438,7 +442,6 @@
         <button style="width: 100%;" onclick="showCreateTeamModal()">＋ 新しいチームを作成</button>
     </div>
 
-    <!-- 2. フォーメーション編集画面 -->
     <div id="edit-screen" class="screen">
         <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 450px; margin: 0 auto 15px auto;">
             <button class="btn-secondary" onclick="backToSelectScreen()">◀ 戻る</button>
@@ -446,7 +449,6 @@
         </div>
 
         <div class="workspace">
-            <!-- ボードコンテナ -->
             <div id="board-container">
                 <div id="display-team-name"></div>
                 <div id="pitch-wrapper">
@@ -456,7 +458,6 @@
                 <div id="display-manager-name"></div>
             </div>
 
-            <!-- 右側：サイドバー -->
             <div class="sidebar">
                 <h3>チーム設定</h3>
                 <div class="form-group">
@@ -486,7 +487,7 @@
                         </div>
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 90px;">
-                        <label>背番号(FP)</label>
+                        <label>FP背番号の色</label>
                         <div class="color-picker-container">
                             <div class="color-picker-wrapper" id="fp-number-color-preview" style="background-color: #ffffff;">
                                 <input type="color" id="input-fp-number-color" class="custom-color-input" value="#ffffff" onchange="updateUniformColor()">
@@ -501,15 +502,15 @@
                 <div id="player-form">
                     <div class="form-group-row">
                         <input type="checkbox" id="p-is-gk" style="width:20px; height:20px;">
-                        <label for="p-is-gk" style="font-size: 14px; color: #fff; cursor: pointer;">ゴールキーパー</label>
+                        <label for="p-is-gk" style="font-size: 14px; color: #fff; cursor: pointer;">ゴールキーパー(GK)</label>
                     </div>
                     <div class="form-group">
                         <label>氏名</label>
-                        <input type="text" id="p-name" placeholder="山田 太郎">
+                        <input type="text" id="p-name" placeholder="name">
                     </div>
                     <div class="form-group">
                         <label>背番号</label>
-                        <input type="number" id="p-number" placeholder="1">
+                        <input type="number" id="p-number" placeholder="number">
                     </div>
                     <div class="form-group">
                         <label>顔写真</label>
@@ -517,23 +518,22 @@
                     </div>
                     <div class="form-group">
                         <label>メモ1</label>
-                        <input type="text" id="p-memo1" placeholder="所属">
+                        <input type="text" id="p-memo1" placeholder="memo">
                     </div>
                     <div class="form-group">
                         <label>メモ2</label>
-                        <textarea id="p-memo2" rows="2" placeholder="特徴"></textarea>
+                        <textarea id="p-memo2" rows="2" placeholder=""></textarea>
                     </div>
                     <button type="button" style="width:100%" id="btn-submit-player" onclick="registerPlayer()">選手を追加・更新</button>
                     <button type="button" style="width:100%; margin-top:5px; display:none;" id="btn-cancel-edit" class="btn-secondary" onclick="clearPlayerForm()">編集をキャンセル</button>
                 </div>
 
-                <!-- 登録選手一覧の見出しと並び替えUI -->
                 <div style="margin-top: 30px; border-bottom: 1px solid #444; padding-bottom: 8px;">
                     <h4 style="margin: 0 0 8px 0;">登録選手一覧</h4>
                     <div class="form-group" style="margin-bottom: 0;">
                         <select id="select-player-sort" onchange="changeSortMethod()" style="padding: 6px 10px; font-size: 12px; background: #2a2a32; width: 100%;">
                             <option value="default">並び替え: 登録順</option>
-                            <option value="number">並び替え: 背番号順 (昇順)</option>
+                            <option value="number">並び替え: 背番号順</option>
                             <option value="name">並び替え: 名前順 (ABC/五十音)</option>
                             <option value="gk">並び替え: GK優先</option>
                         </select>
@@ -544,7 +544,6 @@
         </div>
     </div>
 
-    <!-- Firebase SDK のインポート -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { 
@@ -552,7 +551,8 @@
             createUserWithEmailAndPassword, 
             signInWithEmailAndPassword, 
             signOut, 
-            onAuthStateChanged 
+            onAuthStateChanged,
+            sendPasswordResetEmail
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { 
             getFirestore, 
@@ -652,6 +652,23 @@
                     await signOut(auth);
                     clearPlayerForm();
                 } catch (error) { alert('ログアウト失敗: ' + error.message); }
+            }
+        };
+
+        /* 【追加機能】パスワード再設定メールの送信処理 */
+        document.getElementById('btn-reset-password').onclick = async () => {
+            const email = document.getElementById('auth-email').value;
+            if (!email) {
+                alert('パスワードを再設定するには、上の「メールアドレス」欄に登録済みのメールアドレスを入力してから、もう一度このボタンを押してください。');
+                return;
+            }
+            if (confirm(`入力されたメールアドレス（${email}）宛に、パスワード再設定用のメールを送信します。よろしいですか？`)) {
+                try {
+                    await sendPasswordResetEmail(auth, email);
+                    alert('パスワード再設定メールを送信しました。メールボックス（または迷惑メールフォルダ）を確認し、届いたリンクから新しいパスワードを設定してください。');
+                } catch (error) {
+                    alert('送信失敗: ' + error.message);
+                }
             }
         };
 
@@ -1006,9 +1023,9 @@
             menu.style.left = `${Math.min(pageX, window.innerWidth - 130)}px`;
             menu.style.top = `${pageY}px`;
             menu.innerHTML = `
-                <button style="color: #fff;" id="btn-menu-pitch">❌ コートから外す</button>
-                <button style="color: #ffb300;" id="btn-menu-edit">✏️ 選手情報を編集</button>
-                <button style="color: #ff5252;" id="btn-menu-delete">🗑️ 選手を削除</button>
+                <button style="color: #fff;" id="btn-menu-pitch">外す</button>
+                <button style="color: #ffb300;" id="btn-menu-edit">編集</button>
+                <button style="color: #ff5252;" id="btn-menu-delete">削除</button>
             `;
             menu.querySelector('#btn-menu-pitch').onclick = () => togglePitchStatus(playerObject.id);
             menu.querySelector('#btn-menu-edit').onclick = () => loadPlayerToForm(playerObject.id);
@@ -1016,7 +1033,6 @@
             document.body.appendChild(menu);
         }
 
-        /* 【大幅修正】写真がある場合：バッジ背景はユニフォーム色、バッジ文字色は設定した背番号の色にするロジック */
         window.renderPlayersOnPitch = function() {
             const container = document.getElementById('players-on-pitch');
             if(!container || currentTeamIndex === null || !teams[currentTeamIndex]) return;
@@ -1024,8 +1040,6 @@
             const team = teams[currentTeamIndex];
             const fpColor = team.uniformColor || '#e53935';
             const gkColor = team.gkUniformColor || '#ffb300';
-            
-            // 全体設定の手動背番号色（デフォルト白）
             const globalFpNumColor = team.fpNumberColor || '#ffffff';
 
             team.players.forEach(p => {
@@ -1039,18 +1053,15 @@
                 node.style.borderColor = activeColor;
 
                 if (p.photo) {
-                    // ──【顔写真ありパターン】──
                     node.style.backgroundImage = `url(${p.photo})`;
                     if (p.number) {
                         const badge = document.createElement('div');
                         badge.className = 'number-badge';
                         
                         if (p.isGk) {
-                            // GK：今まで通り（バッジ背景はGKユニフォーム色、文字は白黒自動反転）
                             badge.style.backgroundColor = gkColor;
                             badge.style.color = getContrastColor(gkColor);
                         } else {
-                            // FP：【変更】バッジ背景はFPユニフォーム色、中の数字の文字色は手動設定色
                             badge.style.backgroundColor = fpColor;
                             badge.style.color = globalFpNumColor; 
                         }
@@ -1059,9 +1070,7 @@
                         node.appendChild(badge);
                     }
                 } else {
-                    // ──【顔写真なしパターン】──
                     node.style.backgroundColor = activeColor;
-                    
                     const centerNum = document.createElement('div');
                     centerNum.className = 'number-center';
                     
