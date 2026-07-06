@@ -44,6 +44,17 @@
         .screen { display: none; width: 100%; max-width: 1000px; }
         .screen.active { display: block; }
 
+        .auth-container {
+            width: 100%;
+            max-width: 400px;
+            background-color: var(--card-color);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            box-sizing: border-box;
+            margin-top: 40px;
+        }
+
         /* 1. チーム選択画面 */
         .team-grid {
             display: grid;
@@ -392,11 +403,30 @@
 </head>
 <body>
 
+    <!-- 0. Firebaseログイン・アカウント作成画面 -->
+    <div id="auth-screen" class="screen active">
+        <div class="auth-container" style="margin: 40px auto 0 auto;">
+            <h2 style="text-align: center;">Tactics Board Login</h2>
+            <div class="form-group">
+                <label>メールアドレス</label>
+                <input type="email" id="auth-email" placeholder="example@email.com">
+            </div>
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label>パスワード</label>
+                <input type="password" id="auth-password" placeholder="6文字以上">
+            </div>
+            <button style="width: 100%; margin-bottom: 10px;" id="btn-login">ログイン</button>
+            <button style="width: 100%;" id="btn-signup" class="btn-secondary">新規アカウント作成</button>
+        </div>
+    </div>
+
     <!-- 1. チーム選択画面 -->
-    <div id="select-screen" class="screen active" style="width: 100%; max-width: 500px; margin: 0 auto;">
-        <h2 style="text-align: center; margin-top: 10px;">Tactics Board Pro</h2>
+    <div id="select-screen" class="screen" style="width: 100%; max-width: 500px; margin: 0 auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin: 0;">Tactics Board Pro</h2>
+            <button id="btn-logout" class="btn-secondary" style="padding: 6px 12px; font-size: 12px;">ログアウト</button>
+        </div>
         
-        <!-- チームの並び替えUIボックス -->
         <div class="form-group" style="margin-bottom: 15px;">
             <select id="select-team-sort" onchange="changeTeamSortMethod()" style="padding: 10px; font-size: 14px; background: #1e1e24; width: 100%; color: white; border: 1px solid #444; border-radius: 6px;">
                 <option value="default">並び替え: 登録順</option>
@@ -507,10 +537,127 @@
         </div>
     </div>
 
-    <script>
-        let teams = JSON.parse(localStorage.getItem('football_teams')) || [];
-        let appConfig = JSON.parse(localStorage.getItem('football_app_config')) || { teamSortMethod: 'default' };
-        
+    <!-- Firebase SDK のインポート -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        // 【新設】Firestoreデータベース用のモジュールを追加
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            getDoc,
+            onSnapshot
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDbwb9Sn4zAkiPM0EnkQRAKsfeRXrdHRgU",
+            authDomain: "soccer-formation-c78c5.firebaseapp.com",
+            projectId: "soccer-formation-c78c5",
+            storageBucket: "soccer-formation-c78c5.firebasestorage.app",
+            messagingSenderId: "64598766925",
+            appId: "1:64598766925:web:841cb915aeeda409c47304",
+            measurementId: "G-35SN6NYSPT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app); // Firestoreの初期化
+
+        let currentUser = null;
+        let unsubscribeRealtime = null; // リアルタイム同期解除用のリスナー
+
+        // ログイン状態の監視
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                switchScreen('select-screen');
+                
+                // 【クラウド化】Firestoreからデータを「リアルタイム同期（onSnapshot）」でリッスン開始
+                if(unsubscribeRealtime) unsubscribeRealtime(); // 既存の古い同期があれば解除
+                
+                unsubscribeRealtime = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+                    if (docSnap.exists()) {
+                        const cloudData = docSnap.data();
+                        window.teams = cloudData.teams || [];
+                        window.appConfig = cloudData.appConfig || { teamSortMethod: 'default' };
+                    } else {
+                        // 初回ログインでクラウドにデータがない場合は空で初期化
+                        window.teams = [];
+                        window.appConfig = { teamSortMethod: 'default' };
+                    }
+                    document.getElementById('select-team-sort').value = appConfig.teamSortMethod || 'default';
+                    renderTeamSelect();
+                    
+                    // 現在チームを開いている場合は、ピッチとサイドバーリストもクラウドの最新値で再描画
+                    if (currentTeamIndex !== null && window.teams[currentTeamIndex]) {
+                        // チーム設定フォームへの最新データの流し込み
+                        const team = window.teams[currentTeamIndex];
+                        document.getElementById('input-team-name').value = team.name || '';
+                        document.getElementById('input-manager-name').value = team.manager || '';
+                        document.getElementById('input-uniform-color').value = team.uniformColor || '#e53935';
+                        document.getElementById('input-gk-uniform-color').value = team.gkUniformColor || '#ffb300';
+                        document.getElementById('display-team-name').innerText = team.name || '';
+                        document.getElementById('display-manager-name').innerText = team.manager ? `監督: ${team.manager}` : '';
+                        
+                        renderPlayerList();
+                        renderPlayersOnPitch();
+                    }
+                });
+
+            } else {
+                if(unsubscribeRealtime) unsubscribeRealtime();
+                currentUser = null;
+                switchScreen('auth-screen');
+            }
+        });
+
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            if(screenId === 'edit-screen') drawPitch();
+        }
+
+        // アカウント作成
+        document.getElementById('btn-signup').onclick = async () => {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            if(!email || !password) { alert('メールアドレスとパスワードを入力してください'); return; }
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                alert('アカウントの作成に成功しました！');
+            } catch (error) { alert('作成失敗: ' + error.message); }
+        };
+
+        // ログイン
+        document.getElementById('btn-login').onclick = async () => {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            if(!email || !password) { alert('メールアドレスとパスワードを入力してください'); return; }
+            try { await signInWithEmailAndPassword(auth, email, password); } 
+            catch (error) { alert('ログイン失敗: ' + error.message); }
+        };
+
+        // ログアウト
+        document.getElementById('btn-logout').onclick = async () => {
+            if (confirm('ログアウトしますか？')) {
+                try {
+                    currentTeamIndex = null;
+                    await signOut(auth);
+                    clearPlayerForm();
+                } catch (error) { alert('ログアウト失敗: ' + error.message); }
+            }
+        };
+
+        // --- コアロジックの展開 ---
+        window.teams = [];
+        window.appConfig = { teamSortMethod: 'default' };
         let currentTeamIndex = null;
         let editingPlayerId = null;
 
@@ -520,14 +667,9 @@
             }
         });
 
-        window.onload = () => {
-            document.getElementById('select-team-sort').value = appConfig.teamSortMethod || 'default';
-            renderTeamSelect();
-            drawPitch();
-        };
-
-        function drawPitch() {
+        window.drawPitch = function() {
             const canvas = document.getElementById('pitchCanvas');
+            if(!canvas) return;
             const ctx = canvas.getContext('2d');
             const w = canvas.width;
             const h = canvas.height;
@@ -551,7 +693,6 @@
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.beginPath(); ctx.arc(w/2, h/2, 3, 0, Math.PI*2); ctx.fill();
 
-            // ペナルティエリア
             ctx.strokeRect(w/2 - 80, m, 160, 70);
             ctx.strokeRect(w/2 - 30, m, 60, 25);
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
@@ -571,12 +712,12 @@
             ctx.beginPath(); ctx.arc(w - m, h - m, r, Math.PI, Math.PI * 1.5); ctx.stroke();
         }
 
-        function renderTeamSelect() {
+        window.renderTeamSelect = function() {
             const grid = document.getElementById('team-grid');
+            if(!grid) return;
             grid.innerHTML = '';
             
             const sortMethod = appConfig.teamSortMethod || 'default';
-
             let indexedTeams = teams.map((team, index) => ({ team, originalIndex: index }));
 
             if (sortMethod === 'name') {
@@ -615,8 +756,6 @@
                 }
 
                 card.innerHTML = cardHTML;
-
-                // ゴミ箱ボタンのクリックイベントを設定
                 card.querySelector('.btn-delete-team').onclick = (e) => {
                     e.stopPropagation(); 
                     deleteTeam(index);
@@ -626,55 +765,45 @@
             });
         }
 
-        /* 【復活】失われていたチーム削除用ロジック */
-        function deleteTeam(index) {
+        window.deleteTeam = function(index) {
             const teamName = teams[index].name || '無名チーム';
-            if (confirm(`本当に「${teamName}」をチームごと削除しますか？\n登録されている選手データもすべて消去されます。`)) {
+            if (confirm(`本当に「${teamName}」をチームごと削除しますか？`)) {
                 teams.splice(index, 1);
-                localStorage.setItem('football_teams', JSON.stringify(teams));
-                renderTeamSelect();
+                saveCurrentTeamData(true); // クラウドへセーブ
             }
         }
 
-        function moveTeamOrder(currentIndex, direction) {
+        window.moveTeamOrder = function(currentIndex, direction) {
             const targetIndex = currentIndex + direction;
             if (targetIndex < 0 || targetIndex >= teams.length) return;
-            
             const temp = teams[currentIndex];
             teams[currentIndex] = teams[targetIndex];
             teams[targetIndex] = temp;
-            
-            localStorage.setItem('football_teams', JSON.stringify(teams));
-            renderTeamSelect();
+            saveCurrentTeamData(true); // クラウドへセーブ
         }
 
-        function changeTeamSortMethod() {
+        window.changeTeamSortMethod = function() {
             const method = document.getElementById('select-team-sort').value;
             appConfig.teamSortMethod = method;
-            
-            localStorage.setItem('football_app_config', JSON.stringify(appConfig));
-            renderTeamSelect();
+            saveCurrentTeamData(true); // クラウドへセーブ
         }
 
-        function showCreateTeamModal() {
+        window.showCreateTeamModal = function() {
             const name = prompt("チーム名を入力してください:");
             if (!name) return;
             teams.push({ name: name, manager: '', uniformColor: '#e53935', gkUniformColor: '#ffb300', playerSortMethod: 'default', players: [] });
             saveCurrentTeamData(true); 
-            renderTeamSelect();
         }
 
-        function openTeam(index) {
+        window.openTeam = function(index) {
             currentTeamIndex = index;
-            document.getElementById('select-screen').classList.remove('active');
-            document.getElementById('edit-screen').classList.add('active');
+            switchScreen('edit-screen');
             
             const team = teams[currentTeamIndex];
-            document.getElementById('input-team-name').value = team.name;
+            document.getElementById('input-team-name').value = team.name || '';
             document.getElementById('input-manager-name').value = team.manager || '';
             document.getElementById('input-uniform-color').value = team.uniformColor || '#e53935';
             document.getElementById('input-gk-uniform-color').value = team.gkUniformColor || '#ffb300';
-            
             document.getElementById('select-player-sort').value = team.playerSortMethod || 'default';
             
             updateTeamMeta();
@@ -683,14 +812,14 @@
             window.scrollTo(0, 0);
         }
 
-        function backToSelectScreen() {
+        window.backToSelectScreen = function() {
             closeAllMenus();
-            document.getElementById('edit-screen').classList.remove('active');
-            document.getElementById('select-screen').classList.add('active');
+            currentTeamIndex = null;
+            switchScreen('select-screen');
             renderTeamSelect();
         }
 
-        function updateTeamMeta() {
+        window.updateTeamMeta = function() {
             const teamName = document.getElementById('input-team-name').value;
             const managerName = document.getElementById('input-manager-name').value;
             teams[currentTeamIndex].name = teamName;
@@ -706,17 +835,15 @@
         function syncColorPickerUI() {
             const fpColor = document.getElementById('input-uniform-color').value;
             const gkColor = document.getElementById('input-gk-uniform-color').value;
-
             document.getElementById('fp-color-preview').style.backgroundColor = fpColor;
             document.getElementById('gk-color-preview').style.backgroundColor = gkColor;
         }
 
         function closeAllMenus() {
-            const oldMenus = document.querySelectorAll('.player-action-menu');
-            oldMenus.forEach(m => m.remove());
+            document.querySelectorAll('.player-action-menu').forEach(m => m.remove());
         }
 
-        function updateUniformColor() {
+        window.updateUniformColor = function() {
             const fpColor = document.getElementById('input-uniform-color').value;
             const gkColor = document.getElementById('input-gk-uniform-color').value;
             teams[currentTeamIndex].uniformColor = fpColor;
@@ -727,14 +854,14 @@
             saveCurrentTeamData(true); 
         }
 
-        function changeSortMethod() {
+        window.changeSortMethod = function() {
             const method = document.getElementById('select-player-sort').value;
             teams[currentTeamIndex].playerSortMethod = method;
             renderPlayerList();
             saveCurrentTeamData(true); 
         }
 
-        function registerPlayer() {
+        window.registerPlayer = function() {
             const team = teams[currentTeamIndex];
             const isGk = document.getElementById('p-is-gk').checked;
             const name = document.getElementById('p-name').value;
@@ -744,7 +871,6 @@
             const photoInput = document.getElementById('p-photo');
 
             if (!name) { alert("氏名は必須です"); return; }
-            
             if (editingPlayerId === null && team.players.length >= 100) {
                 alert("登録できる選手は100人までです。"); return;
             }
@@ -774,7 +900,7 @@
             }
         }
 
-        function clearPlayerForm() {
+        window.clearPlayerForm = function() {
             document.getElementById('p-is-gk').checked = false;
             document.getElementById('p-name').value = '';
             document.getElementById('p-number').value = '';
@@ -782,28 +908,22 @@
             document.getElementById('p-memo2').value = '';
             document.getElementById('p-photo').value = '';
             editingPlayerId = null;
-            
             document.getElementById('btn-submit-player').innerText = "選手を追加・更新";
             document.getElementById('btn-cancel-edit').style.display = "none";
         }
 
-        function renderPlayerList() {
+        window.renderPlayerList = function() {
             const team = teams[currentTeamIndex];
-            document.getElementById('player-count').innerText = team.players.length;
+            document.getElementById('player-count').innerText = team ? team.players.length : 0;
             const listContainer = document.getElementById('registered-players-list');
+            if(!listContainer || !team) return;
             listContainer.innerHTML = '';
 
             const sortMethod = team.playerSortMethod || 'default';
-            document.getElementById('select-player-sort').value = sortMethod;
-            
             let sortedPlayers = [...team.players];
 
             if (sortMethod === 'number') {
-                sortedPlayers.sort((a, b) => {
-                    const numA = a.number === '' ? 9999 : parseInt(a.number);
-                    const numB = b.number === '' ? 9999 : parseInt(b.number);
-                    return numA - numB;
-                });
+                sortedPlayers.sort((a, b) => (parseInt(a.number) || 9999) - (parseInt(b.number) || 9999));
             } else if (sortMethod === 'name') {
                 sortedPlayers.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
             } else if (sortMethod === 'gk') {
@@ -813,23 +933,18 @@
             sortedPlayers.forEach(p => {
                 const item = document.createElement('div');
                 item.className = 'player-list-item';
-                
                 const numDisplay = p.number !== '' ? p.number : '-';
 
                 item.innerHTML = `
                     <div style="display: flex; align-items: center; overflow: hidden; flex: 1; padding-right: 5px;">
-                        <span class="custom-list-num-wrapper" style="display: flex; align-items: center;">
-                            <span class="list-player-number">${numDisplay}</span>
-                        </span>
+                        <span class="custom-list-num-wrapper"><span class="list-player-number">${numDisplay}</span></span>
                         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                             <strong style="font-size: 15px;">${p.name} ${p.isGk ? '<span style="color:#ffb300; font-size:11px; font-weight:bold;">(GK)</span>' : ''}</strong> <br>
                             <span style="font-size:11px; color:#aaa;">${p.memo1 || ''}</span>
                         </div>
                     </div>
                     <div style="display:flex; gap:5px; flex-shrink: 0;">
-                        <button class="btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="togglePitchStatus('${p.id}')">
-                            ${p.isOnPitch ? '外す' : '起用'}
-                        </button>
+                        <button class="btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="togglePitchStatus('${p.id}')">${p.isOnPitch ? '外す' : '起用'}</button>
                         <button class="btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="loadPlayerToForm('${p.id}')">編集</button>
                         <button class="btn-danger" style="padding:6px 10px; font-size:12px;" onclick="deletePlayer('${p.id}')">削除</button>
                     </div>
@@ -838,21 +953,18 @@
             });
         }
 
-        function deletePlayer(id) {
+        window.deletePlayer = function(id) {
             const team = teams[currentTeamIndex];
             const p = team.players.find(pl => pl.id === id);
-            
             if (confirm(`本当に ${p.name} 選手を削除しますか？`)) {
                 team.players = team.players.filter(pl => pl.id !== id);
                 if (editingPlayerId === id) clearPlayerForm();
-                closeAllMenus();
-                renderPlayerList(); 
-                renderPlayersOnPitch();
+                closeAllMenus(); renderPlayerList(); renderPlayersOnPitch();
                 saveCurrentTeamData(false);
             }
         }
 
-        function loadPlayerToForm(id) {
+        window.loadPlayerToForm = function(id) {
             const p = teams[currentTeamIndex].players.find(pl => pl.id === id);
             editingPlayerId = p.id;
             document.getElementById('p-is-gk').checked = p.isGk || false;
@@ -860,46 +972,39 @@
             document.getElementById('p-number').value = p.number;
             document.getElementById('p-memo1').value = p.memo1;
             document.getElementById('p-memo2').value = p.memo2;
-            
             document.getElementById('btn-submit-player').innerText = "登録変更を保存する";
             document.getElementById('btn-cancel-edit').style.display = "block";
-            
             document.getElementById('player-form').scrollIntoView({ behavior: 'smooth' });
             closeAllMenus();
         }
 
-        function togglePitchStatus(id) {
+        window.togglePitchStatus = function(id) {
             const p = teams[currentTeamIndex].players.find(pl => pl.id === id);
             p.isOnPitch = !p.isOnPitch;
-            closeAllMenus();
-            renderPlayerList(); renderPlayersOnPitch();
+            closeAllMenus(); renderPlayerList(); renderPlayersOnPitch();
             saveCurrentTeamData(false); 
         }
 
         function showActionMenu(pageX, pageY, playerObject) {
             closeAllMenus();
-
             const menu = document.createElement('div');
             menu.className = 'player-action-menu';
-            
             menu.style.left = `${Math.min(pageX, window.innerWidth - 130)}px`;
             menu.style.top = `${pageY}px`;
-
             menu.innerHTML = `
                 <button style="color: #fff;" id="btn-menu-pitch">❌ コートから外す</button>
                 <button style="color: #ffb300;" id="btn-menu-edit">✏️ 選手情報を編集</button>
                 <button style="color: #ff5252;" id="btn-menu-delete">🗑️ 選手を削除</button>
             `;
-
             menu.querySelector('#btn-menu-pitch').onclick = () => togglePitchStatus(playerObject.id);
             menu.querySelector('#btn-menu-edit').onclick = () => loadPlayerToForm(playerObject.id);
             menu.querySelector('#btn-menu-delete').onclick = () => deletePlayer(playerObject.id);
-
             document.body.appendChild(menu);
         }
 
-        function renderPlayersOnPitch() {
+        window.renderPlayersOnPitch = function() {
             const container = document.getElementById('players-on-pitch');
+            if(!container || currentTeamIndex === null || !teams[currentTeamIndex]) return;
             container.innerHTML = '';
             const team = teams[currentTeamIndex];
             const fpColor = team.uniformColor || '#e53935';
@@ -907,13 +1012,10 @@
 
             team.players.forEach(p => {
                 if (!p.isOnPitch) return;
-
                 const node = document.createElement('div');
                 node.className = 'player-node';
-                
                 node.style.left = `${(p.x / 450) * 100}%`;
                 node.style.top = `${(p.y / 600) * 100}%`;
-                
                 const activeColor = p.isGk ? gkColor : fpColor;
                 node.style.borderColor = activeColor;
 
@@ -922,119 +1024,94 @@
                     if (p.number) {
                         const badge = document.createElement('div');
                         badge.className = 'number-badge';
-                        badge.style.borderColor = activeColor; 
-                        badge.innerText = p.number;
+                        badge.style.borderColor = activeColor; badge.innerText = p.number;
                         node.appendChild(badge);
                     }
                 } else {
                     node.style.backgroundColor = activeColor;
                     node.style.color = getContrastColor(activeColor);
-                    
                     const centerNum = document.createElement('div');
-                    centerNum.className = 'number-center';
-                    centerNum.innerText = p.number || '';
+                    centerNum.className = 'number-center'; centerNum.innerText = p.number || '';
                     node.appendChild(centerNum);
                 }
 
                 const labelContainer = document.createElement('div');
                 labelContainer.className = 'player-label-container';
-
                 const nameElm = document.createElement('div');
-                nameElm.className = 'name-label';
-                nameElm.innerText = p.name;
+                nameElm.className = 'name-label'; nameElm.innerText = p.name;
                 labelContainer.appendChild(nameElm);
 
                 if (p.memo1 && p.memo1.trim() !== '') {
                     const memoElm = document.createElement('div');
-                    memoElm.className = 'memo-label';
-                    memoElm.innerText = p.memo1;
+                    memoElm.className = 'memo-label'; memoElm.innerText = p.memo1;
                     labelContainer.appendChild(memoElm);
                 }
-
                 node.appendChild(labelContainer);
                 makeElementDraggable(node, p);
                 container.appendChild(node);
             });
-            
             syncColorPickerUI();
         }
 
         function makeElementDraggable(elm, playerObject) {
-            let isDragging = false;
-            let hasMoved = false; 
+            let isDragging = false; let hasMoved = false;
             const pitchWrapper = document.getElementById('pitch-wrapper');
 
-            const startDrag = (e) => {
-                isDragging = true;
-                hasMoved = false;
-                e.preventDefault();
-            };
-
+            const startDrag = (e) => { isDragging = true; hasMoved = false; e.preventDefault(); };
             const doDrag = (e) => {
-                if (!isDragging) return;
-                hasMoved = true; 
-                
+                if (!isDragging) return; hasMoved = true;
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 const rect = pitchWrapper.getBoundingClientRect();
-                
                 let percentX = ((clientX - rect.left) / rect.width);
                 let percentY = ((clientY - rect.top) / rect.height);
-
-                let targetX = (percentX * 450) - 25; 
-                let targetY = (percentY * 600) - 25;
-
-                targetX = Math.max(0, Math.min(targetX, 450 - 50));
-                targetY = Math.max(0, Math.min(targetY, 600 - 50));
-
-                elm.style.left = `${(targetX / 450) * 100}%`;
-                elm.style.top = `${(targetY / 600) * 100}%`;
-
-                playerObject.x = targetX;
-                playerObject.y = targetY;
+                let targetX = (percentX * 450) - 25; let targetY = (percentY * 600) - 25;
+                targetX = Math.max(0, Math.min(targetX, 450 - 50)); targetY = Math.max(0, Math.min(targetY, 600 - 50));
+                elm.style.left = `${(targetX / 450) * 100}%`; elm.style.top = `${(targetY / 600) * 100}%`;
+                playerObject.x = targetX; playerObject.y = targetY;
             };
-
-            const endDrag = (e) => { 
+            const endDrag = (e) => {
                 if (isDragging) {
-                    isDragging = false; 
-                    
+                    isDragging = false;
                     if (!hasMoved) {
                         const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
                         const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
                         showActionMenu(clientX, clientY, playerObject);
                     } else {
-                        saveCurrentTeamData(false); 
+                        saveCurrentTeamData(false);
                     }
                 }
             };
-
-            elm.addEventListener('mousedown', startDrag);
-            document.addEventListener('mousemove', doDrag);
-            document.addEventListener('mouseup', endDrag);
-
-            elm.addEventListener('touchstart', startDrag, { passive: false });
-            document.addEventListener('touchmove', doDrag, { passive: false });
-            document.addEventListener('touchend', endDrag);
+            elm.addEventListener('mousedown', startDrag); document.addEventListener('mousemove', doDrag); document.addEventListener('mouseup', endDrag);
+            elm.addEventListener('touchstart', startDrag, { passive: false }); document.addEventListener('touchmove', doDrag, { passive: false }); elm.addEventListener('touchend', endDrag);
         }
 
-        function saveCurrentTeamData(isSilent = false) {
-            localStorage.setItem('football_teams', JSON.stringify(teams));
+        // 【大幅書き換え】ローカル保存を廃止し、Firestoreにまとめて非同期保存するロジック
+        window.saveCurrentTeamData = async function(isSilent = false) {
+            if(!currentUser) return;
             
-            if (!isSilent) {
-                const indicator = document.getElementById('autosave-indicator');
-                indicator.classList.add('show');
+            try {
+                // データベース上の users/ユーザー固有UID のドキュメントにデータを丸ごとセット
+                await setDoc(doc(db, "users", currentUser.uid), {
+                    teams: teams,
+                    appConfig: appConfig
+                }, { merge: true }); // 他の項目を破壊しないマージ設定
                 
-                clearTimeout(window.autosaveTimeout);
-                window.autosaveTimeout = setTimeout(() => {
-                    indicator.classList.remove('show');
-                }, 1200);
+                if (!isSilent) {
+                    const indicator = document.getElementById('autosave-indicator');
+                    if(indicator) {
+                        indicator.classList.add('show');
+                        clearTimeout(window.autosaveTimeout);
+                        window.autosaveTimeout = setTimeout(() => { indicator.classList.remove('show'); }, 1200);
+                    }
+                }
+            } catch (error) {
+                console.error("クラウド保存失敗:", error);
             }
         }
 
         function getContrastColor(hexcolor){
-            const r = parseInt(hexcolor.substr(1,2),16);
-            const g = parseInt(hexcolor.substr(3,2),16);
-            const b = parseInt(hexcolor.substr(5,2),16);
+            const r = parseInt(hexcolor.substr(1,2),16); const g = parseInt(hexcolor.substr(3,2),16); const b = parseInt(hexcolor.substr(5,2),16);
             return ((((r*299)+(g*587)+(b*114))/1000) >= 128) ? '#000000' : '#ffffff';
         }
     </script>
