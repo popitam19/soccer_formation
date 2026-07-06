@@ -486,7 +486,7 @@
                         </div>
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 90px;">
-                        <label>FP背番号の色</label>
+                        <label>背番号(FP)</label>
                         <div class="color-picker-container">
                             <div class="color-picker-wrapper" id="fp-number-color-preview" style="background-color: #ffffff;">
                                 <input type="color" id="input-fp-number-color" class="custom-color-input" value="#ffffff" onchange="updateUniformColor()">
@@ -501,7 +501,7 @@
                 <div id="player-form">
                     <div class="form-group-row">
                         <input type="checkbox" id="p-is-gk" style="width:20px; height:20px;">
-                        <label for="p-is-gk" style="font-size: 14px; color: #fff; cursor: pointer;">ゴールキーパー(GK)</label>
+                        <label for="p-is-gk" style="font-size: 14px; color: #fff; cursor: pointer;">ゴールキーパー</label>
                     </div>
                     <div class="form-group">
                         <label>氏名</label>
@@ -516,12 +516,12 @@
                         <input type="file" id="p-photo" accept="image/*">
                     </div>
                     <div class="form-group">
-                        <label>メモ1 (ポジションなど)</label>
-                        <input type="text" id="p-memo1" placeholder="MF / 右ウイング">
+                        <label>メモ1</label>
+                        <input type="text" id="p-memo1" placeholder="所属">
                     </div>
                     <div class="form-group">
-                        <label>メモ2 (特徴など)</label>
-                        <textarea id="p-memo2" rows="2" placeholder="特徴を記入"></textarea>
+                        <label>メモ2</label>
+                        <textarea id="p-memo2" rows="2" placeholder="特徴"></textarea>
                     </div>
                     <button type="button" style="width:100%" id="btn-submit-player" onclick="registerPlayer()">選手を追加・更新</button>
                     <button type="button" style="width:100%; margin-top:5px; display:none;" id="btn-cancel-edit" class="btn-secondary" onclick="clearPlayerForm()">編集をキャンセル</button>
@@ -607,7 +607,7 @@
                         document.getElementById('input-fp-number-color').value = team.fpNumberColor || '#ffffff';
                         
                         document.getElementById('display-team-name').innerText = team.name || '';
-                        document.getElementById('display-manager-name').innerText = team.manager ? `監督: ${team.manager}` : '';
+                        document.getElementById('display-manager-name').innerText = team.manager ? `監督： ${team.manager}` : '';
                         
                         renderPlayerList();
                         renderPlayersOnPitch();
@@ -750,7 +750,7 @@
                 let cardHTML = `
                     <button class="btn-delete-team" title="チームを削除">🗑️</button>
                     <h3 style="color: ${activeTextColor};">${team.name || '無名チーム'}</h3>
-                    <p style="font-size:12px; color: ${subTextColor}; margin:5px 0 0 0;">監督: ${team.manager || '未設定'}</p>
+                    <p style="font-size:12px; color: ${subTextColor}; margin:5px 0 0 0;">監督： ${team.manager || '未設定'}</p>
                 `;
 
                 if (sortMethod === 'custom') {
@@ -834,7 +834,7 @@
             teams[currentTeamIndex].manager = managerName;
             
             document.getElementById('display-team-name').innerText = teamName;
-            document.getElementById('display-manager-name').innerText = managerName ? `監督: ${managerName}` : '';
+            document.getElementById('display-manager-name').innerText = managerName ? `監督： ${managerName}` : '';
             
             syncColorPickerUI();
             saveCurrentTeamData(true); 
