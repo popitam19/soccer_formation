@@ -487,7 +487,7 @@
                         </div>
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 90px;">
-                        <label>FP背番号の色</label>
+                        <label>背番号(FP)</label>
                         <div class="color-picker-container">
                             <div class="color-picker-wrapper" id="fp-number-color-preview" style="background-color: #ffffff;">
                                 <input type="color" id="input-fp-number-color" class="custom-color-input" value="#ffffff" onchange="updateUniformColor()">
@@ -502,7 +502,7 @@
                 <div id="player-form">
                     <div class="form-group-row">
                         <input type="checkbox" id="p-is-gk" style="width:20px; height:20px;">
-                        <label for="p-is-gk" style="font-size: 14px; color: #fff; cursor: pointer;">ゴールキーパー(GK)</label>
+                        <label for="p-is-gk" style="font-size: 14px; color: #fff; cursor: pointer;">GK</label>
                     </div>
                     <div class="form-group">
                         <label>氏名</label>
@@ -510,7 +510,7 @@
                     </div>
                     <div class="form-group">
                         <label>背番号</label>
-                        <input type="number" id="p-number" placeholder="number">
+                        <input type="number" id="p-number" placeholder="1">
                     </div>
                     <div class="form-group">
                         <label>顔写真</label>
@@ -533,7 +533,7 @@
                     <div class="form-group" style="margin-bottom: 0;">
                         <select id="select-player-sort" onchange="changeSortMethod()" style="padding: 6px 10px; font-size: 12px; background: #2a2a32; width: 100%;">
                             <option value="default">並び替え: 登録順</option>
-                            <option value="number">並び替え: 背番号順</option>
+                            <option value="number">並び替え: 背番号順 (昇順)</option>
                             <option value="name">並び替え: 名前順 (ABC/五十音)</option>
                             <option value="gk">並び替え: GK優先</option>
                         </select>
@@ -579,40 +579,55 @@
         let currentUser = null;
         let unsubscribeRealtime = null;
 
+        // 【安全強化】ログイン状態の監視とFirestoreからの厳密なデータ復元
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                switchScreen('select-screen');
                 
                 if(unsubscribeRealtime) unsubscribeRealtime();
                 
                 unsubscribeRealtime = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
                     if (docSnap.exists()) {
                         const cloudData = docSnap.data();
-                        window.teams = cloudData.teams || [];
+                        // データの存在を配列形式で厳密にチェックして流し込む
+                        window.teams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
                         window.appConfig = cloudData.appConfig || { teamSortMethod: 'default' };
                     } else {
                         window.teams = [];
                         window.appConfig = { teamSortMethod: 'default' };
                     }
-                    document.getElementById('select-team-sort').value = appConfig.teamSortMethod || 'default';
+                    
+                    const teamSortSelect = document.getElementById('select-team-sort');
+                    if (teamSortSelect) {
+                        teamSortSelect.value = window.appConfig.teamSortMethod || 'default';
+                    }
+                    
                     renderTeamSelect();
                     
+                    // 編集中の場合は、UIの入力フォームやピッカー、ピッチ上の描画も連動させる
                     if (currentTeamIndex !== null && window.teams[currentTeamIndex]) {
                         const team = window.teams[currentTeamIndex];
-                        document.getElementById('input-team-name').value = team.name || '';
-                        document.getElementById('input-manager-name').value = team.manager || '';
-                        document.getElementById('input-uniform-color').value = team.uniformColor || '#e53935';
-                        document.getElementById('input-gk-uniform-color').value = team.gkUniformColor || '#ffb300';
-                        document.getElementById('input-fp-number-color').value = team.fpNumberColor || '#ffffff';
                         
-                        document.getElementById('display-team-name').innerText = team.name || '';
-                        document.getElementById('display-manager-name').innerText = team.manager ? `監督： ${team.manager}` : '';
+                        if(document.getElementById('input-team-name')) document.getElementById('input-team-name').value = team.name || '';
+                        if(document.getElementById('input-manager-name')) document.getElementById('input-manager-name').value = team.manager || '';
+                        if(document.getElementById('input-uniform-color')) document.getElementById('input-uniform-color').value = team.uniformColor || '#e53935';
+                        if(document.getElementById('input-gk-uniform-color')) document.getElementById('input-gk-uniform-color').value = team.gkUniformColor || '#ffb300';
+                        if(document.getElementById('input-fp-number-color')) document.getElementById('input-fp-number-color').value = team.fpNumberColor || '#ffffff';
+                        
+                        if(document.getElementById('display-team-name')) document.getElementById('display-team-name').innerText = team.name || '';
+                        if(document.getElementById('display-manager-name')) document.getElementById('display-manager-name').innerText = team.manager ? `監督： ${team.manager}` : '';
                         
                         renderPlayerList();
                         renderPlayersOnPitch();
                     }
+                }, (error) => {
+                    console.error("Firestore同期エラー:", error);
+                    if(error.code === 'permission-denied') {
+                        alert("データベースの読み込み権限が切れています。Firebaseルールの設定を確認してください。");
+                    }
                 });
+
+                switchScreen('select-screen');
 
             } else {
                 if(unsubscribeRealtime) unsubscribeRealtime();
@@ -655,20 +670,17 @@
             }
         };
 
-        /* 【追加機能】パスワード再設定メールの送信処理 */
         document.getElementById('btn-reset-password').onclick = async () => {
             const email = document.getElementById('auth-email').value;
             if (!email) {
-                alert('パスワードを再設定するには、上の「メールアドレス」欄に登録済みのメールアドレスを入力してから、もう一度このボタンを押してください。');
+                alert('パスワードを再設定するには、上の「メールアドレス」欄に入力してから、もう一度このボタンを押してください。');
                 return;
             }
             if (confirm(`入力されたメールアドレス（${email}）宛に、パスワード再設定用のメールを送信します。よろしいですか？`)) {
                 try {
                     await sendPasswordResetEmail(auth, email);
-                    alert('パスワード再設定メールを送信しました。メールボックス（または迷惑メールフォルダ）を確認し、届いたリンクから新しいパスワードを設定してください。');
-                } catch (error) {
-                    alert('送信失敗: ' + error.message);
-                }
+                    alert('パスワード再設定メールを送信しました。メールボックスを確認してください。');
+                } catch (error) { alert('送信失敗: ' + error.message); }
             }
         };
 
@@ -1023,9 +1035,9 @@
             menu.style.left = `${Math.min(pageX, window.innerWidth - 130)}px`;
             menu.style.top = `${pageY}px`;
             menu.innerHTML = `
-                <button style="color: #fff;" id="btn-menu-pitch">外す</button>
-                <button style="color: #ffb300;" id="btn-menu-edit">編集</button>
-                <button style="color: #ff5252;" id="btn-menu-delete">削除</button>
+                <button style="color: #fff;" id="btn-menu-pitch">❌ コートから外す</button>
+                <button style="color: #ffb300;" id="btn-menu-edit">✏️ 選手情報を編集</button>
+                <button style="color: #ff5252;" id="btn-menu-delete">🗑️ 選手を削除</button>
             `;
             menu.querySelector('#btn-menu-pitch').onclick = () => togglePitchStatus(playerObject.id);
             menu.querySelector('#btn-menu-edit').onclick = () => loadPlayerToForm(playerObject.id);
