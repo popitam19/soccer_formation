@@ -1,0 +1,382 @@
+:root {
+    --bg-color: #121214;
+    --card-color: #1e1e24;
+    --accent-color: #2e7d32;
+    --text-color: #ffffff;
+    --text-muted: #aaaaaa;
+}
+
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overscroll-behavior: none; 
+}
+
+h2, h3 { margin: 0 0 15px 0; }
+button {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 12px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+}
+button:hover { opacity: 0.9; }
+.btn-secondary { background-color: #444; }
+.btn-danger { background-color: #c62828; }
+.btn-danger:hover { background-color: #b71c1c; }
+ 
+.screen { display: none; width: 100%; max-width: 1000px; }
+.screen.active { display: block; }
+
+/* 1. チーム選択画面 */
+.team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+.team-card {
+    background-color: var(--card-color);
+    padding: 20px 20px 45px 20px; 
+    border-radius: 10px;
+    text-align: center;
+    cursor: pointer;
+    border: 2px solid transparent;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    position: relative; 
+    transition: border-color 0.2s;
+}
+.team-card:hover {
+    border-color: #888 !important; 
+}
+.btn-delete-team {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.4);
+    color: #ff5252;
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    z-index: 5;
+}
+.btn-delete-team:hover {
+    background: #c62828;
+    color: white;
+    transform: scale(1.1);
+}
+
+.team-order-controls {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    z-index: 6;
+}
+.team-order-controls button {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 11px;
+    background-color: rgba(0, 0, 0, 0.5); 
+    color: #eee;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.team-order-controls button:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* 2. メイン編集画面レイアウト */
+.workspace {
+    display: flex;
+    gap: 20px;
+    flex-direction: column;
+    align-items: center;
+}
+@media (min-width: 768px) {
+    .workspace {
+        flex-direction: row;
+        justify-content: center;
+        align-items: flex-start;
+    }
+}
+
+.sidebar {
+    width: 100%;
+    max-width: 450px;
+    box-sizing: border-box;
+    background-color: var(--card-color);
+    padding: 20px;
+    border-radius: 15px;
+}
+@media (min-width: 768px) {
+    .sidebar {
+        width: 340px;
+        max-height: 850px;
+        overflow-y: auto;
+    }
+}
+
+/* 3. 外枠（ボード全体）のコンテナ */
+#board-container {
+    width: 100%;
+    max-width: 450px;
+    background-color: #0b0b0d; 
+    border-radius: 24px;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    position: relative;
+}
+
+#display-team-name {
+    width: 100%;
+    padding: 15px 10px 10px 10px;
+    box-sizing: border-box;
+    text-align: center;
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    min-height: 24px;
+    word-break: break-all;
+}
+
+/* サッカーコート本体 */
+#pitch-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4; 
+    touch-action: none; 
+    -webkit-user-select: none;
+    user-select: none;
+}
+canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+#display-manager-name {
+    width: 100%;
+    padding: 8px 20px 15px 20px;
+    box-sizing: border-box;
+    text-align: right;
+    font-size: 13px;
+    color: var(--text-muted);
+    min-height: 18px;
+    word-break: break-all;
+}
+
+/* 4. 選手アイコン(コート上) */
+.player-node {
+    position: absolute;
+    width: 12.22%;  
+    height: 9.16%;  
+    max-width: 55px;
+    max-height: 55px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 50%;
+    border: 3px solid white; 
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-size: cover;
+    background-position: center;
+    z-index: 10;
+    -webkit-touch-callout: none;
+    box-sizing: border-box; 
+}
+
+.player-node .number-center {
+    font-weight: bold;
+    font-size: 16px;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+}
+
+.player-node .number-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    border: 1.5px solid white; 
+    z-index: 12;
+}
+ 
+.player-label-container {
+    position: absolute;
+    bottom: -34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    color: #ffffff !important; 
+}
+.player-node .name-label {
+    background: rgba(0,0,0,0.75);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: bold;
+    white-space: nowrap;
+    color: #ffffff !important;
+}
+.player-node .memo-label {
+    background: rgba(0,0,0,0.6);
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-size: 8px;
+    color: #eeeeee !important; 
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
+/* コート上タップメニュー */
+.player-action-menu {
+    position: absolute;
+    background: rgba(20, 20, 25, 0.96);
+    border: 1px solid #444;
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+    min-width: 110px;
+}
+.player-action-menu button {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+    text-align: left;
+    width: 100%;
+    background: transparent;
+    font-weight: normal;
+}
+.player-action-menu button:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+/* 5. 選手リスト・登録フォーム */
+.form-group {
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+}
+.form-group-row {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.form-group label { font-size: 12px; margin-bottom: 4px; color: var(--text-muted); }
+.form-group input, .form-group textarea, .form-group select {
+    background: #2a2a32; border: 1px solid #444; padding: 10px; color: white; border-radius: 6px;
+    font-size: 14px; 
+}
+
+.color-picker-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #2a2a32;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #444;
+}
+.color-picker-wrapper {
+    position: relative;
+    width: 36px; 
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    overflow: hidden;
+    cursor: pointer;
+}
+.custom-color-input {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    width: 60px;
+    height: 60px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.custom-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.custom-color-input::-webkit-color-swatch { border: none; }
+.custom-color-input::-moz-color-swatch { border: none; }
+ 
+.player-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #2a2a32;
+    padding: 10px;
+    margin-top: 5px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.list-player-number {
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    min-width: 28px;
+    display: inline-block;
+    text-align: center;
+    margin-right: 8px;
+    font-family: 'Impact', 'Arial Black', sans-serif; 
+}
+ 
+#autosave-indicator {
+    font-size: 11px;
+    color: #4caf50;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+#autosave-indicator.show {
+    opacity: 1;
+}
